@@ -6,7 +6,7 @@
 回を重ねるごとにデープな内容になっていく予定ですので楽しみにしていてください。
 
 docker内部のDNSの仕組みだったり、overlay mountがどのようにDockerに生かされてるとか
-gitlab.comのプライベートリポジトリにイメージpushしてCI／CAパイプラインで回す方法とかをやる予定です。
+gitlab.comのプライベートリポジトリにイメージpushしてCI／CAパイプラインで回す方法とかマルチステージビルドとかをやる予定です。
 
 ### 一回目目標
 
@@ -478,5 +478,6 @@ python -m http.server 8080
 
 ## おまけ
 
-mac はこれで docker daemon が動作しているttyにアタッチできる
+- [Best practices for Dockerfiles](https://docs.docker.com/develop/develop-images/dockerfile_best-practices/) これは絶対に読みましょう　日本語版は古いです
+- mac はこれで docker daemon が動作しているttyにアタッチできる
 `screen ~/Library/Containers/com.docker.docker/Data/vms/0/tty`
