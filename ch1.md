@@ -331,7 +331,8 @@ docker ps -a
 - docker stop - docker start : stop -> running
 - docker run - docker exec : runnig さらに別のプロセスをcontainer上で実行
 
-注意点はdeletedするためにはstop状態にする必要がある
+~~注意点はdeletedするためにはstop状態にする必要がある~~
+`docker rm -f` で強制的に削除できました。
 
 ### localのDocker環境と確認・整理する
 
