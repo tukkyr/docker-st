@@ -4,6 +4,8 @@
 
 ### 第二回目の目標
 
+注意: linuxのコマンドを前提にしているのでwindowsの方はwindows用のコマンドに置き換えて実行してください
+
 #### 第一回目の振り返り
 
 - Dockerの基本的な概念 docker image, container について
@@ -38,7 +40,7 @@
   - デフォルト network (bridge)
   - user network (type bridge)
 
-#### etcdをマルチコンテナーで構成
+#### etcdをマルチコンテナーで構成 or localdynamodb
 
 - T.B.D
 
@@ -264,9 +266,30 @@ eh0もdocker0のnetifもそのまま利用できる
 
 [リンク先](https://docs.docker.com/network/network-tutorial-host/)
 
-### localdynamodbを使う
+### etcdを使う
 
 T.B.D
+
+> Enable synchronize-panes: ctrl+b then shift :. Then type set synchronize-panes on at the prompt. To disable synchronization: set synchronize-panes off.
+
+```sh
+docker network create etcd-net
+tmux
+docker run -it --name srv1 --net etcd-net debian bash
+#eh0のuser bridgeのip address取得
+ip -f inet -o addr show eth0 | awk '{print $4}' | cut -d/ -f 1
+export ETCD_IP_ADDR=$(!!)
+wget https://github.com/etcd-io/etcd/releases/download/v3.4.0-rc.2/etcd-v3.4.0-rc.2-linux-amd64.tar.gz
+tar xvfz etcd-v3.4.0-rc.2-linux-amd64.tar.gz
+cd etcd-v3.4.0-rc.2-linux-amd64/bin
+./etcd --name ${HOSTNAME} --listen-peer-urls http://${ETCD_IP_ADDR} --initial-advertise-peer-urls http://${ETCD_IP_ADDR} --initial-cluster srv1=http://172.18.0.2:2380,srv2=http://172.18.0.3:2380 &
+./etcdctl member list
+# 片方のcontainerで
+./etcdctl set /foo bar
+./etcdctl get /foo
+./etcdctl ls
+# などを実行
+```
 
 ### 補足
 
