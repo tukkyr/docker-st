@@ -42,7 +42,10 @@
 
 #### etcdをマルチコンテナーで構成 or localdynamodb
 
-- T.B.D
+[etcd](https://etcd.io)
+
+- k8sのdbとして使われている key-value型の分散ストレージ
+  - マルチノードで動作する
 
 ### Dockerのストレージ
 
@@ -255,6 +258,35 @@ docker container attach co3
 docker rm -f co1 co2 co3 co4
 docker network rm net
 ```
+
+##### Docker内部からhostPCにアクセスする
+
+![imge](https://success.docker.com/api/images/.%2Frefarch%2Fnetworking%2Fimages%2Fbridge-driver.png)
+
+###### hostPCがlinuxの場合
+
+```sh
+ip -f inet -o addr show docker0
+# docker0 gateway の broadcastアドレスを調べる
+ip -f inet -o addr
+# host pc の docker0 の転送先のipを調べる
+docker run -i alpine ping -c 2 < host ip >
+# 疎通確認をする
+```
+
+###### hostPCがdocker for mac (or windows)の場合
+
+vm上で Docker Demonが立ち上がっているため osのip を調べてもたどり着かない
+
+公式ページに解決方法が記載されている (host.docker.internal) を利用する
+
+```sh
+docker run -i alpine ping -c 2 host.docker.internal
+```
+
+[for mac](https://docs.docker.com/docker-for-mac/networking/)
+
+[for windows](https://docs.docker.com/docker-for-windows/networking/)
 
 ##### ホストネットワーク
 
