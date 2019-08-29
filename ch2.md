@@ -11,6 +11,24 @@
 - Dockerの基本的な概念 docker image, container について
 - Docker で最も使うコマンドの復習
 
+![dockerimg](https://docs.docker.com/engine/images/architecture.svg)
+
+```sh
+docker info
+docker run -it alpine ash
+/ # exit
+docker run -d --name al alpine sleep infinity
+docker container inspect al
+docker exec -it al ash
+docker ps
+docker ps -f status=exited
+docker images
+docker container prune
+docker image prune
+docker rm -f $(docker ps -a -q)
+docker rmi -f $(docker images -q)
+```
+
 #### Dockerのstrageとvolumeについて
 
 - imageのLayer管理について
@@ -30,6 +48,7 @@
 #### Dockerのネットワーク
 
 - ネットワークの確認方法
+  - ping コマンド
   - ss コマンド
   - ip コマンド
     - vethのペアを見つけよう
@@ -46,6 +65,8 @@
 
 - k8sのdbとして使われている key-value型の分散ストレージ
   - マルチノードで動作する
+
+---
 
 ### Dockerのストレージ
 
@@ -76,6 +97,7 @@ docker diff <container id>
 docker run -d alpine sleep infinity
 #<container id>
 docker exec -it <container id> ash
+/ # ps -ef で sleep infinityがpid 1で起動していることを確認
 ```
 
 ```sh
@@ -152,6 +174,7 @@ docker volume inspect vol
 docker run -d --name devtest --mount src=vol2,dst=/app nginx:latest
 # docker run -d --name devtest -v myvol2:/app nginx:latest
 docker run -d --name nonametest --mount dst=/app nginx:latest
+# 名前を指定しないと 適当なハッシュ値でvolumeを作成する
 docker volume ls
 ```
 
@@ -188,6 +211,8 @@ docker run -v /dbdata --name dbstore2 ubuntu /bin/bash
 docker rundocker run --rm --volumes-from dbstore2 -v $(pwd):/backup ubuntu bash -c "cd /dbdata && tar xvf /backup/backup.tar --strip 1"
 ```
 
+---
+
 ### Dockerのネットワークについて
 
 ipv4のネットワークとvethによる仮想L2スイッチ, brctlによる仮想L３スイッチが内部で使われているため
@@ -204,19 +229,37 @@ ipv4のネットワークとvethによる仮想L2スイッチ, brctlによる仮
 
 > Warning: The --link flag is a legacy feature of Docker. It may eventually be removed. Unless you absolutely need to continue using it, we recommend that you use user-defined networks to facilitate communication between two containers instead of using --link.
 
+#### ネットワーク調査用のツール
+
+- ping: 疎通確認
+- ss: tcp, udp port, linux scket の状態確認
+  - `ss -nplt`: は LISTEN portを見るのによく使う
+- ip: ネットワーク の設定確認
+  - `ip link show`, `ip addr show`
+  - `ip -f inet -o addr show eth0 | awk '{print $4}' | cut -d/ -f 1`: eth0のipaddrを抜き出す
+  - `ip route show local`: ローカルのroute tableの表示
+- dig: DNS のリクエスト情報の確認 (`apt install dnsutils`でインストール)
+  - dig www.google.com: google DNS サーバーへの DNS呼び出しをトレースする
+  - nslookupでもOK
+- tcpdump: 今回は時間の都合上省略する tpcのパケットを調査するときに使う
+- ps: Processを確認するのに利用 (`apt install procps`でインストール)
+
 #### 公式のチュートリアルにトライしよう
 
 [リンク先](https://docs.docker.com/network/network-tutorial-standalone/)
 
+> 公式チュートリアルでは alpine linux を使っていますが、より細かい情報を取得するために
+> debian linuxを本イベントで利用します。
+
 ##### User-Dridge
 
 ```sh
-docker run -dit --name co1 --network net alpine ash
-docker run -dit --name co2 --network net alpine ash
-docker run -dit --name co3 alpine ash
-docker run -dit --name co4 --network net alpine ash
+docker run -dit --name co1 --network net debian bash
+docker run -dit --name co2 --network net debian bash
+docker run -dit --name co3 debian bash
+docker run -dit --name co4 --network net debian bash
 docker connect bridge co4
-docker network connect bridge co4
+docker network connect bridge co4 # bridgeをco4にアタッチ
 ```
 
 ```sh
@@ -229,11 +272,12 @@ docker network inspect net
 
 ```sh
 docker container attach co1
-
+# ip address link で eth0の状態を確認
+/ # apt update
+/ # apt install dnsutils
 / # ping -c 2 co2
 / # ping -c 2 c3
-# 同じネットワーク上にいないので見つからない
-# ip address show で ネットワークが見れる
+# 同じネットワーク上にいないので見つからない `docker network inspect net`
 ```
 
 ```sh
@@ -255,15 +299,48 @@ docker container attach co4
 docker container attach co3
 / # cat /etc/resolv.conf
 # host pc と同じ DNS server に向いているはず
+```
+
+後片付け
+
+```sh
 docker rm -f co1 co2 co3 co4
 docker network rm net
 ```
 
-##### Docker内部からhostPCにアクセスする
+応用編 NAPTの設定を確認する
 
-![imge](https://success.docker.com/api/images/.%2Frefarch%2Fnetworking%2Fimages%2Fbridge-driver.png)
+```sh
+sudo bridge-utils
+brctl show
+docker network create test-net
+docker run -it --net test-net alpine sleep infinity
+docker run -it --name napt --net test-net debian bash
+/ apt update
+/ apt install dnsutils
+/ ip link show eth0
+# veth のペアを調べる
+# デタッチ
+ip link show
+# veth のベアを調べる
+brctl show
+sudo iptables --table nat --list
+ip route show table local
+ip route get 8.8.8.8
+docker attach napt
+/ ip route get 8.8.8.8
+# 172.17.0.0から来たパケットはallに渡される hostで `ip route get 8.8.8.8`したときと同じRouteを通る
+/ ip route show table main
+/ ip route show table local
+```
 
-###### hostPCがlinuxの場合
+[networkアーキテクチャで参考になりやすそうなサイト](https://success.docker.com/article/networking)
+
+---
+
+### Docker内部からhostPCにアクセスする
+
+#### hostPCがlinuxの場合
 
 ```sh
 ip -f inet -o addr show docker0
@@ -274,7 +351,7 @@ docker run -i alpine ping -c 2 < host ip >
 # 疎通確認をする
 ```
 
-###### hostPCがdocker for mac (or windows)の場合
+#### hostPCがdocker for mac (or windows)の場合
 
 vm上で Docker Demonが立ち上がっているため osのip を調べてもたどり着かない
 
