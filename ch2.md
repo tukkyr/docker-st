@@ -11,6 +11,8 @@
 - Dockerの基本的な概念 docker image, container について
 - Docker で最も使うコマンドの復習
 
+[第一回目リンク先](https://github.com/tukkyr/docker-st/blob/master/ch1.md)
+
 ![dockerimg](https://docs.docker.com/engine/images/architecture.svg)
 
 ```sh
@@ -94,7 +96,8 @@ docker diff <container id>
 
 # or
 # runを使わずにash(bash)を立ち上げる方法 <こっちの方が好み>
-docker run -d alpine sleep infinity
+docker run -d alpine sh -c 'while sleep 3600; do :; done'
+# debianの場合は docker run -d debian sleep infinity でOK
 #<container id>
 docker exec -it <container id> ash
 / # ps -ef で sleep infinityがpid 1で起動していることを確認
