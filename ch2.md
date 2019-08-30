@@ -19,14 +19,16 @@
 docker info
 docker run -it alpine ash
 / # exit
-docker run -d --name al alpine sleep infinity
-docker container inspect al
-docker exec -it al ash
+docker run -d --name st debian sleep infinity
+docker container inspect st
+docker exec -it st bash
 docker ps
 docker ps -f status=exited
 docker images
 docker container prune
 docker image prune
+docker stop st
+docker start st
 docker rm -f $(docker ps -a -q)
 docker rmi -f $(docker images -q)
 ```
@@ -44,8 +46,8 @@ docker rmi -f $(docker images -q)
 - 実際にデモで
   - volumeを使う
     - コンテナ間のデータの共有
-    - データのバックアップ
   - bindを使う
+  - データのバックアップ
 
 #### Dockerのネットワーク
 
@@ -53,9 +55,8 @@ docker rmi -f $(docker images -q)
   - ping コマンド
   - ss コマンド
   - ip コマンド
-    - vethのペアを見つけよう
-      - namespace デモ
   - dig コマンド
+  - tcpdump
 
 - container間の通信
   - デフォルト network (bridge)
@@ -77,9 +78,12 @@ docker rmi -f $(docker images -q)
 imageがLayer構成になっていることは説明したが、
 Containerも独自のLayerを持っている
 
+image名:tag名 = layer(ro)のセットに名前をつけている
+
 ```sh
 docker pull python:latest
 docker history python:latest
+# python:latestの実態を表示
 ```
 
 Containerとイメージの差分はdiffで取得できる
@@ -90,6 +94,7 @@ docker run -it alpine ash
 # 以下alpine linuxでの作業
 / # cd
 / # touch test.txt
+/ # head -c 1024 /dev/urandom > test2.txt
 / # ctl+p, ctl+q
 # 以下host psでの作業
 docker diff <container id>
@@ -100,7 +105,7 @@ docker run -d alpine sh -c 'while sleep 3600; do :; done'
 # debianの場合は docker run -d debian sleep infinity でOK
 #<container id>
 docker exec -it <container id> ash
-/ # ps -ef で sleep infinityがpid 1で起動していることを確認
+/ # ps -ef で sleep と ash が起動していることを確認
 ```
 
 ```sh
@@ -126,7 +131,8 @@ sudo du -sh /var/lib/docker/containers/*
 
 > docker for macの人は vm上に作成されているため 直接 /var/lib/docker 以下を見ることができない
 >
-> `screen ~/Library/Containers/com.docker.docker/Data/vms/0/tty` で vmのttyにアタッチすることで確認可能
+> `screen ~/Library/Containers/com.docker.docker/Data/vms/0/tty` で vmのttyにアタッチすることで確認可能 (ctl+a,dでデタッチ可能)
+> docker for windows の方は hyper-vのvmにアクセスする必要があるのですが、windows pcで作業確認時間がなく未確認です　すいません
 
 containerのlayerはcontainer毎にことなるため、変化内容をcontainer間で共有することが
 できない、そこで volume が登場する
@@ -163,8 +169,8 @@ Docker 17.06 から --mount オプションを使うことを推奨されてい�
 - The readonly option, if present, causes the bind mount to be mounted into the container as `read-only`.
 The volume-opt option, which can be specified more than once, takes a key-value pair consisting of the option name and its value.
 
-英語で書かれているが、要するに タイプとsource(マウント元)とdestination(マウント先)を決めて、
-read-onlyにするかどうか選ぶだけのこと
+英語で書かれているが、要するに type(マウントタイプ)とsource(マウント元)とdestination(マウント先)を決めて、
+read-onlyにするかどうか選ぶこと
 
 `--mount type=volume,src=vol,dst=/app`のように使う
 
@@ -189,6 +195,7 @@ docker ps -a
 docker run -it --mount src=vol,dst=/app alpine ash
 # 後片付け
 docker volume prune
+docker rm -f $(docker ps -a -f)
 ```
 
 #### bind
@@ -196,6 +203,7 @@ docker volume prune
 ```sh
 docker run -it --name devtest --mount type=bind,source="$(pwd)"/target,target=/app alpine ash
 # docker run -d -it --name devtest -v "$(pwd)"/target:/app nginx:latest
+# macのかたは Docker for mac でfileシェアを有効にしておく必要がある
 # windows のかたは c:/<path> のように指定する Docker for windows で fileシェアを有効にしておくひつようが有る
 ```
 
@@ -228,7 +236,7 @@ ipv4のネットワークとvethによる仮想L2スイッチ, brctlによる仮
 ![img](docker2-2.png)
 
 上の図のようにBridge networkを利用して通信を行う
-実際の実装は kernel namespace と veth により実現
+実際の実装は kernel namespace と veth(L2トンネリング) と brctl(L3スイッチ) により実現
 
 --linkと環境変数をつかったやり方は将来削除予定のため今回は説明の対象外　詳しくは[こちら](https://docs.docker.com/network/links/)
 
@@ -243,6 +251,7 @@ ipv4のネットワークとvethによる仮想L2スイッチ, brctlによる仮
   - `ip link show`, `ip addr show`
   - `ip -f inet -o addr show eth0 | awk '{print $4}' | cut -d/ -f 1`: eth0のipaddrを抜き出す
   - `ip route show local`: ローカルのroute tableの表示
+  - `ip route show main`: 外部との通信を行う際のtableを表示
 - dig: DNS のリクエスト情報の確認 (`apt install dnsutils`でインストール)
   - dig www.google.com: google DNS サーバーへの DNS呼び出しをトレースする
   - nslookupでもOK
@@ -263,26 +272,39 @@ docker run -dit --name co1 --network net debian bash
 docker run -dit --name co2 --network net debian bash
 docker run -dit --name co3 debian bash
 docker run -dit --name co4 --network net debian bash
-docker connect bridge co4
 docker network connect bridge co4 # bridgeをco4にアタッチ
 ```
 
+サブネット知識が必要になる
+
+- ipaddr : 自分に振られているIPアドレス
+- subnet mask: network部とhost部に分ける 172.17.0.2/16のような表記になっていることが多い (CIDR)
+  - 上記の例だと11111111111111110000000000000000のようなマスクをipaddrに適応することで 172.17.0.0というnetworkアドレスを取得する
+- gateway: 別のネットワーク部にpopするためのアドレス 172.17.0.1 今回は brctlによって内部にL3仮想スイッチが作られている
+
+- 同じnetworkに属する host同士 直接通信が可能
+- 異なるnetworkに属する host同士 gatewayを通して通信可能 napt(out方向), portmapping,portforward(in方向) (brctl, iptableによって実現)
+
 ```sh
-docker container ls
+docker container ls -f name=co
 docker network inspect bridge
 docker network inspect net
 
-# Subnetが 172.18 と 178.19 でネットワークが分離されている
+# どこかにメモしておく
+# Subnetが 172.17.0.0 と 172.18.0.0 でネットワークが分離されている
 ```
 
 ```sh
 docker container attach co1
-# ip address link で eth0の状態を確認
+# ip -f inet -o addr show で eth0の状態を確認
 / # apt update
-/ # apt install dnsutils
+/ # apt install -y dnsutils
 / # ping -c 2 co2
-/ # ping -c 2 c3
+/ # ping -c 2 co4
+/ # ping -c 2 co3
 # 同じネットワーク上にいないので見つからない `docker network inspect net`
+/ # cat /etc/resolv.conf
+/ # dig co2
 ```
 
 ```sh
@@ -290,14 +312,21 @@ docker container attach co4
 / # ping -c 2 co1
 / # ping -c 3 co3
 # bad address 'co3'
-/ # ping -c 172.17.0.2
+/ # ping -c 172.17.0.2 #co3 のipaddressを直接指定
 ```
+
+以上のことより dockerのcontainer間で通信するには
+
+host名に 対象の名前を指定して すれば良い
+
+細くネットワーク設定がどうなっているか調べる
 
 ```sh
 ip link show
 docker container attach co4
 / # ip link show
-/ # apk add --no-cache bind-tool
+/ # apt update
+/ # apt install dnsutils
 / # dig co1 A
 / # cat /etc/resolv.conf
 # 127.0.0.11 に向いているはず
@@ -338,6 +367,34 @@ docker attach napt
 / ip route show table main
 / ip route show table local
 ```
+
+#### host pcからcontainer内にアクセスする
+
+portmappingを使う, docker runの実行時に指定する
+
+run以外のタイミングでは指定できない
+
+```sh
+docker run -it --name py-server1 -p 8080:8080 python:3 bash
+# / mkdir /app
+# / cd /app
+# / cat /etc/hostname > index.html
+# / ip addr
+# / python -m http.server 8080
+# デタッチして
+sudo iptables --table nat --list
+# portforwordingを確認
+sudo ss -lnpt
+# *:8080でlistenされていることを確認
+
+# ブラウザからアクセス localhost:8080
+docker run -it --name py-server2 --expose 8081 -P python:3 bash
+# / python -m http.server 8081
+# デタッチして
+sudo ss -lnpt
+```
+
+run時に -p オプションを指定することで hostpcからcontainerにアクセスできる
 
 [networkアーキテクチャで参考になりやすそうなサイト](https://success.docker.com/article/networking)
 
@@ -409,7 +466,7 @@ cd etcd-v3.4.0-rc.2-linux-amd64/bin
 
 #### Docker の logging
 
-[loging](https://docs.docker.com/config/containers/logging/configure/)
+[loging](https://docs.docker.com/config/containers/logging/configu)
 
 #### Docker の セキュリティー
 
