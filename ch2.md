@@ -186,7 +186,7 @@ docker volume ls
 ```sh
 docker run -d --mount src=vol,dst=/app alpine touch /app/test.txt
 docker ps -a
-docker run -d --mount src=vol,dst=/app alpine ls /app
+docker run -it --mount src=vol,dst=/app alpine ash
 # 後片付け
 docker volume prune
 ```
@@ -194,8 +194,9 @@ docker volume prune
 #### bind
 
 ```sh
-docker run -d -it --name devtest --mount type=bind,source="$(pwd)"/target,target=/app nginx:latest
+docker run -it --name devtest --mount type=bind,source="$(pwd)"/target,target=/app alpine ash
 # docker run -d -it --name devtest -v "$(pwd)"/target:/app nginx:latest
+# windows のかたは c:/<path> のように指定する Docker for windows で fileシェアを有効にしておくひつようが有る
 ```
 
 #### Backup (時間が余った方は)
@@ -204,14 +205,15 @@ dockerの領域は直接Accessできないためtype volumeとbindを使ってco
 
 ```sh
 # backup a container
-docker run -v /dbdata --name dbstore ubuntu /bin/bash
-docker run --rm --volumes-from dbstore -v $(pwd):/backup ubuntu tar cvf /backup/backup.tar /dbdata
+docker run --mount dst=/dbdata --name dbstore ubuntu /bin/bash
+docker run --rm --volumes-from dbstore --mount type=bind,src=$(pwd),dst=/backup ubuntu tar cvf /backup/backup.tar /dbdata
+# --volumes-from は 指定した containerの volue設定をそのまま受け継ぐ
 ```
 
 ```sh
 # restore container from backup
-docker run -v /dbdata --name dbstore2 ubuntu /bin/bash
-docker rundocker run --rm --volumes-from dbstore2 -v $(pwd):/backup ubuntu bash -c "cd /dbdata && tar xvf /backup/backup.tar --strip 1"
+docker run --mount dst=/dbdata --name dbstore2 ubuntu /bin/bash
+docker rundocker run --rm --volumes-from dbstore2 --mount type=bind,src=$(pwd),dst=/backup ubuntu bash -c "cd /dbdata && tar xvf /backup/backup.tar --strip 1"
 ```
 
 ---
