@@ -69,6 +69,16 @@ docker rmi -f $(docker images -q)
 - k8sのdbとして使われている key-value型の分散ストレージ
   - マルチノードで動作する
 
+#### 次回に向けて
+
+- Dockerfileの書き方
+
+絶対に見ておくべき資料
+
+[ベストプラクティス](https://docs.docker.com/develop/develop-images/dockerfile_best-practices/)
+
+- Docker compose
+
 ---
 
 ### Dockerのストレージ
@@ -195,7 +205,7 @@ docker ps -a
 docker run -it --mount src=vol,dst=/app alpine ash
 # 後片付け
 docker volume prune
-docker rm -f $(docker ps -a -f)
+docker rm -f $(docker ps -a -q)
 ```
 
 #### bind
@@ -223,6 +233,8 @@ docker run --rm --volumes-from dbstore --mount type=bind,src=$(pwd),dst=/backup 
 docker run --mount dst=/dbdata --name dbstore2 ubuntu /bin/bash
 docker rundocker run --rm --volumes-from dbstore2 --mount type=bind,src=$(pwd),dst=/backup ubuntu bash -c "cd /dbdata && tar xvf /backup/backup.tar --strip 1"
 ```
+
+[参考](https://docs.docker.com/storage/volumes/)
 
 ---
 
