@@ -500,7 +500,6 @@ docker-entroypoint.sh を呼び出し直す
 
 > gosu ユーザーを指定して実行 apline linux では su-exec
 
-
 ---
 
 ## その他のチェックポイント
@@ -516,6 +515,7 @@ docker-entroypoint.sh を呼び出し直す
 - `>>` よりも `{} | tee` を使う
 
 ---
+
 ## moby/buildkit の利用
 
 [moby/buildkit](https://github.com/moby/buildkit/blob/master/frontend/dockerfile/docs/experimental.md)
