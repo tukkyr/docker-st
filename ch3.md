@@ -478,6 +478,19 @@ docker build --target release -t t:t .
 >
 > 後述する [buildkit](https://github.com/moby/buildkit) を使えば 依存関係のあるステージのみビルドするようになる
 
+### gitlab へのimageのアップ
+
+gitlab.comは無料で使える イメージリポジトリ tagのバージョン管理もできるので個人開発用途なら利用するの良いかも
+
+```sh
+docker login registry.gitlab.com -p < access token > -u < user name >
+docker tag t:t registry.gitlab.com/<user name>/<project>/t:v0.1.0
+docker push registry.gitlab.com/<user name>/<project>/t:v0.1.0
+docker logout registry.gitlab.com
+```
+
+> access token を使うと、個人用のpassもssh key も必要ない scope は api のみ
+
 ### 本番環境のリリースについて補足
 
 今まですべて root 権限で動作させてきた 本番環境では user 設定が必要 redis が参考としてわかりやすい
