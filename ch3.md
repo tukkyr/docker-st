@@ -104,15 +104,18 @@ docker rmi -f $(docker images -q)
 
 ### ENV と ARG の使い分け
 
+- ARGもENVもimageのヒストリーに値が記録されてしまう
 - ARGはbuild時に指定して変更することができる
-- ENVは変化しない値として docker cmd　なので使う
-  - ARG build時のみ RUNの前で渡される
-  - ENVは docker上でも使える 
-  - http_proxyとhttps_proxy
+- ENVは変化しない値として Dockerfile CMD なので使う
+  - ARG docker build時のみ RUNの前で渡される
+  - ENVは docker container 上でも使える 
+  - http_proxyとhttps_proxyをargとして使った場合は特別にヒストリーに値が保存されない
 
 ### multi-stage builds
 
 - Imagenのサイズ 減らすコツ
+- CIパイプラインの構築もできる
+
 > cacheをへらす手段もある
 - ステージとしての検討例 (stage を base に image に イメージを作成できる)
   - builder: 依存関係
@@ -122,25 +125,24 @@ docker rmi -f $(docker images -q)
   - lint: 最小限の構築チェック
   - test
   - release
-- COPY --from で並列化 (18.09からサポートされている)
+- COPY --from で並列化 (18.09からサポートされている buildkitを有効にする必要がある)
   - prefixをつける
 
 ### パイプの利用
 
 - `|`,`&&`,`||`の3パターン
 
-### Docker BuildKit
-
-### その他のコマンド
-
-- `USER`
-
-
 #### 本番環境で使う
 
 - 構築部分は依存関係をチェック
 - multi-stage buildsで生成物のみ入れる
 - user `exec gosu`, `exec su-exec`
+
+### Docker BuildKit
+
+### その他のコマンド
+
+- `USER`
 
 ---
 ## 初めてのDockerfile
@@ -159,11 +161,11 @@ Dockerfileを作成する際に最低限覚えておく必要があるコマン�
 ### stdinを使ったデモ
 
 ```sh
-echo -e `FROM alpine:3\nRUN echo "hello Dockerfile?"' | docker build -t t:t -
+echo -e 'FROM alpine:3\nRUN echo "hello Dockerfile?"' | docker build -t t:t -
 
 # または ヒアドキュメントを使って
 
-docker build -t t:t -<<EOF
+docker build -t t:t --no-cache -<<EOF
 FROM alpine:3
 RUN echo "hello Dockerfile?"
 EOF
@@ -177,11 +179,12 @@ EOF
 
 ```sh
 echo "hello context" > hello.txt
-mkdir child && echo "child context" > chile/ctx.txt
-echo -e 'FROM alpine:3\nCOPY hello.txt chile/ctx.txt /root \nRUN cat /root/hello.txt' | docker build -t t:t -f- .
+mkdir child && echo "child context" > child/ctx.txt
+echo -e 'FROM alpine:3\nCOPY . /root/ \nRUN cat /root/hello.txt && cat /root/child/ctx.txt' | docker build -t t:t -f- .
 ```
 
-かんたんなコマンドを実行するなら, stdinの利用でOK
+- コンテキストで指定した親フォルダをしていすることはできない `..`
+- かんたんなコマンドを実行するなら, stdinの利用でOK
 
 ### Dockerfileを使ったデモ
 
@@ -191,7 +194,7 @@ FROM alpine:3
 RUN echo "hello Dockerfile?"
 EOF
 
-docker build -t st:weeyble .
+docker build -t t:t .
 ```
 
 このようにしておけば ベースを作ったあとDockerfileの編集をvimなどのEditorで編集を継続できる
@@ -204,7 +207,7 @@ export ST_ENV=hello
 
 echo ${ST_ENV}
 
-echo `FROM alpine:3\nRUN set -ux && echo ${ST_ENV} > /root/hello.txt | docker build -t t:t -
+echo -e 'FROM alpine:3\nRUN set -ux && echo ${ST_ENV} > /root/hello.txt' | docker build -t t:t -
 
 # hostの環境変数は引き継ぐことができない
 ```
@@ -231,6 +234,7 @@ build時に値を変更できる
 cat -<<\EOF > Dockerfile
 ARG PYTHON_VERSION_ARG=2
 FROM python:"${PYTHON_VERSION_ARG}"
+ARG test=1
 RUN python --version
 EOF
 
@@ -239,8 +243,10 @@ docker build -t t:t .
 # Status: Downloaded newer image for python:2
 
 # 指定すると build時に好きなtag を指定することができる
-docker build --build-arg PYTHON_VERSION_ARG=3 -t t:t .
+docker build --build-arg PYTHON_VERSION_ARG=3 --build-arg test=2 -t t:t .
 # Status: Downloaded newer image for python:3
+docker image history t:t
+# RUNコマンドの前に変数として渡される
 ```
 
 ビルド時にbaseとするイメージの指定 指定がなければデフォルトバージョンを利用する
@@ -260,12 +266,16 @@ print(f'BUILD_ENV is {os.environ.get("BUILD_ENV", "not found")}')
 
 ```sh
 cat -<<\EOF > Dockerfile
+FROM python:3
+
+WORKDIR /app
+
 ARG BUILD_ARG="hello"
-ENV BUILD_ENV="world"
+ENV BUILD_ENV=${BUILD_ARG}
 
-FROM alpine:3
+CPOY app.py .
 
-CMD ["python", "/app.py"]
+CMD ["python", "app.py"]
 EOF
 # ちなみに["", ""]を使わずCMD を直接書くと sh -c として実行される
 # ["", ""]の形書くと execから呼ばれる = processが書き換わる
@@ -311,6 +321,7 @@ EOF
 
 docker build -t t:2 .
 docker image history t:2
+docker images
 ```
 
 余計なレイヤーができていないことが確認できる
@@ -413,7 +424,7 @@ FROM golang:1-buster AS builder
 
 WORKDIR /app
 
-COPY . /app
+COPY . . 
 
 RUN GOOS=linux GOARCH=amd64 go build -o a.out
 
@@ -421,7 +432,7 @@ FROM alpine:3
 
 WORKDIR /app
 
-COPY --from=builder /app/a.out /app
+COPY --from=builder /app/a.out . 
 
 CMD ["/app/a.out"]
 ```
@@ -441,19 +452,26 @@ RUN set -x && apt-get update && apt-get install -y --no-install-recommends vim &
 CMD ["bash"]
 
 FROM base-env AS builder
-COPY . /app
+
+COPY . . 
 RUN GOOS=linux GOARCH=amd64 go build -o a.out
 
 FROM alpine:3 AS release
 WORKDIR /app
-COPY --from=builder /app/a.out /app
+COPY --from=builder /app/a.out . 
 CMD ["/app/a.out"]
 ```
+WORKDIR も 引き継ぐことができる
 
 ```sh
 #targetでステージを指定
 docker build --target dev-env -t t:t .
 docker run -it --mount type=bind,src=$(pwd),dst=/app t:t
+
+docker build --target release -t t:t .
+
+export DOKCER_BUILDKIT=1
+docker build --target release -t t:t .
 ```
 
 > Defaultのbuildでは `--target release`としても 依存関係のない builder stageもビルドしようとする なので対策としてDockerfileを２つ用意した
