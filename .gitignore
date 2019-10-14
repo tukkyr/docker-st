@@ -1,1 +1,6 @@
 ch1-p.md
+pro.png
+*.swp
+__pycahe__/
+.venv/
+.vscode/
