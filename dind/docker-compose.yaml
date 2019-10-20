@@ -1,0 +1,36 @@
+version: '3.7'
+services:
+  dind:
+    image: docker:dind
+    networks:
+      - dind-net
+    environment:
+      DOCKER_TLS_CERTDIR:
+    privileged: true
+  
+  python3:
+    build:
+      context: .
+      target: python3-dev 
+    networks:
+      - dind-net
+      - backend-service
+    volumes:
+      - app-data:/app
+    environment: 
+      DOCKER_TLS_CERTDIR:
+      DOCKER_HOST: tcp://dind:2375
+    command: 'sh -c "while sleep 3600; do :; done"'
+    init: true
+  
+  dynamodb:
+    image: amazon/dynamodb-local
+    networks:
+      - backend-service
+
+networks:
+  dind-net:
+  backend-service:
+
+volumes:
+  app-data:

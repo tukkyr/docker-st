@@ -42,6 +42,7 @@ docker rm -f $(docker ps -a -q)
 docker rmi -f $(docker images -q)
 # New : 使われていない(＝containerの状態がUPでない)すべてのリソースを削除
 docker system prune -a
+docker volume prune
 ```
 
 
@@ -221,7 +222,8 @@ services:
 Build and run
 
 ```sh
-$ docker-compose up
+# build コンテキストの変更が反映されないので --build オプションをつけたほうが無難 cacheは効く
+$ docker-compose up --build
 
 # 立ち上がったサービスには docker-compose exec でプロセスを立ち上げることができる
 # docker-compose execはデフォルトでTTYを確保する
@@ -260,7 +262,8 @@ docker-compose down
 docker-run 
 docker-compose stop
 # 無名volumeを一緒に削除 redisは無名volumeをdockerfileの中で作成するのでそのvolumeを削除
-docker-compose down --volumes
+# docker compose file内で定義した volume も削除する
+# docker-compose down --volumes
 ```
 
 > docker-composeを使うときは、コンテキストに位置に注意する docker-composeがdocker-compose.ymlを見つけれないと実行できない
@@ -374,6 +377,98 @@ networks:
 ```sh
 git clone https://github.com/Microsoft/vscode-remote-try-python
 ```
+
+### Dind
+
+docker in docker のデモ dockerの中でdocker containerを作成できるから便利
+
+docker-compose.yaml
+
+```yaml
+version: '3.7'
+services:
+  dind:
+    image: docker:dind
+    networks:
+      - dind-net
+    environment:
+      DOCKER_TLS_CERTDIR:
+    privileged: true
+  
+  python3:
+    build:
+      context: .
+      target: python3-dev 
+    networks:
+      - dind-net
+    volumes:
+      - app-data=/app
+    environment: 
+      DOCKER_TLS_CERTDIR:
+      DOCKER_HOST: tcp://dind:2375
+    command: 'sh -c "while sleep 3600; do :; done"'
+  
+    init: true
+
+networks:
+  dind-net:
+
+volumes:
+  app-data:
+```
+
+Dockerfile
+
+```dockerfile
+FROM docker:stable AS base-stage 
+
+# RUN addgroup -S -g 1000 tukky && adduser -S -G tukky -u 999 tukky
+
+RUN apk add --no-cache bash tzdata curl wget vim git sudo shadow \
+ && cp /usr/share/zoneinfo/Asia/Tokyo /etc/localtime \
+ && apk del tzdata
+
+# USER tukky
+
+RUN wget https://raw.githubusercontent.com/git/git/master/contrib/completion/git-prompt.sh -O ${HOME}/.git-prompt.sh \
+ && mkdir -p ${HOME}/.vim/autoload && wget https://raw.githubusercontent.com/junegunn/vim-plug/master/plug.vim -O ${HOME}/.vim/autoload/plug.vim \
+ && echo . ${HOME}/.git-prompt.sh >> ${HOME}/.bashrc \
+ && echo "PS1='\[\e[36m\]\h\[\e[m\] \[\e[32m\]\W\[\e[m\] <\t> \$(__git_ps1 \"( %s ) \") \$ '" >> ${HOME}/.bashrc
+
+RUN [ -z ${http_proxy} ] || echo export http_proxy=${http_proxy} >> ${HOME}/.bashrc
+
+RUN echo -e "set nocompatible\n\
+filetype off\n\n\
+call plug#begin('~/.vim/plugged')\n\n\
+Plug 'VundleVim/Vundle.vim'\n\n\
+call plug#end()\n\
+filetype plugin indent on\n\
+syntax enable \n\n\
+set st=4 ts=4 sw=4" | tee  ${HOME}/.vimrc
+
+CMD ["sh", "-c", "while sleep 3600; do :; done"]
+
+FROM base-stage AS python3-dev
+
+WORKDIR /venv
+
+RUN apk add --no-cache python3 python-dev gcc g++ gfortran openblas-dev linux-headers\
+ && python3 -m venv .venv \
+ && . .venv/bin/activate \
+ && pip install -U pip setuptools \
+ && pip install python-language-server flake8 \
+ && echo . /venv/.venv/bin/activate >> ${HOME}/.bashrc
+
+WORKDIR /app
+
+CMD ["bash"]
+```
+
+```sh
+docker-compose up -d --build
+docker-compose exec python3 bash
+docker-compose run python3
+docker-compose down --volume
 
 ### リファレンス
 
