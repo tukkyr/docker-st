@@ -100,11 +100,14 @@ FROM debian
 RUN set -x \
  && apt-get update \
  && apt-get install -y git vim
+ && rm -rf /var/lib/apt/list/*
 
 ARG VIMRC_VERSION
 
 COPY ./vimrc_${VIMRC_VERSION} /root/.vimrc
 ```
+
+apt-getを使うのはaptではshをサポートしてないため警告が表示されるため
 
 ```sh
 export VIMRC_VERSION=0.2.0
