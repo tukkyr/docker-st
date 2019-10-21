@@ -335,7 +335,7 @@ docker-compose.yaml
 version: '3'
 services:
   api:
-    image: 'debian:3'
+    image: 'debian:'
     env_file:
       - ./api.env
     environment:
