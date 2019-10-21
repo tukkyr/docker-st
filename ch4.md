@@ -289,7 +289,11 @@ docker-compose stop
 
 デフォルトでは docker-compose.ymlとdocker-compose.override.yml
 
-docker-compse -f docker-compose.yml -f docker-compose.dev.yml でdocker-compose.ymlをベースにdocker-compose.dev.ymlを上書きできる
+```sh
+docker-compose -f docker-compose.yml -f docker-compose.dev.yml up
+```
+
+でdocker-compose.ymlをベースにdocker-compose.dev.ymlを上書きできる
 
 docker-compose.dev.yml
 
