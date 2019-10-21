@@ -287,7 +287,16 @@ docker-compose stop
 
 デフォルトでは docker-compose.ymlとdocker-compose.override.yml
 
-docker-compse -f 1 -f 2 で1をベースに2を上書きできる
+docker-compse -f docker-compose.yml -f docker-compose.dev.yml でdocker-compose.ymlをベースにdocker-compose.dev.ymlを上書きできる
+
+docker-compose.dev.yml
+
+```yaml
+services:
+  web:
+    environment:
+      FLASK_ENV: development
+```
 
 ### 環境変数
 
