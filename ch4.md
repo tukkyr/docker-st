@@ -101,7 +101,7 @@ $ ping db -c 3
 FROM debian
 RUN set -x \
  && apt-get update \
- && apt-get install -y git vim
+ && apt-get install -y git vim \
  && rm -rf /var/lib/apt/list/*
 
 ARG VIMRC_VERSION
