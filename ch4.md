@@ -296,6 +296,8 @@ docker-compose.dev.yml
 ```yaml
 services:
   web:
+    volumes:
+      - .:/code
     environment:
       FLASK_ENV: development
 ```
