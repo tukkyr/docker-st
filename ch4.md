@@ -18,6 +18,8 @@ imageはReadOnlyなlayerを持っている
 
 ![img](docker2.png)
 
+同じイメージは使いまわし < cacheが効く >
+
 Containerも**Writableな**独自のLayerを持っている
 
 > だたし、他のContainerとは独立している
@@ -48,7 +50,7 @@ docker volume prune
 
 ### docker volume
 
-他のContainerやhostpsと共有するするため、データの永続化のために作成
+他のContainerやhostpsとデータを共有するするために使用、データの永続化のために作成
 
 ![イメージ](https://docs.docker.com/storage/images/types-of-mounts-volume.png)
 
@@ -62,6 +64,8 @@ docker run -d --name ssh --mount src=ssh,dst=/root/.ssh debian sleep infinity
 docker exec -it ssh bash
 ```
 
+> windowのhostpsとfile共有するとパーミッションが755になるので注意
+
 ### docker network
 
 > コンテナ間の通知のやり取り
@@ -72,6 +76,7 @@ docker exec -it ssh bash
 docker network create backend
 docker run -d --name db --network backend debian sleep infinity
 # networkを明示的に指定することで dockerが提供するDNSを使えるようになる
+# default bridge は container名ではやり取りできない IPアドレスを直接指定することは可能
 docker run -it --rm --network debian bash
 $ ping db -c 3
 ```
@@ -102,6 +107,7 @@ COPY ./vimrc_${VIMRC_VERSION} /root/.vimrc
 ```
 
 ```sh
+export VIMRC_VERSION=0.2.0
 docker build --build-arg 'VIMRC_VERSION=0.1.0' -t t:1 .
 # contextがDockerfileのある場所とこの異なる場合
 # docker build --build-arg 'VIMRC_VERSION=0.1.0' -t t:2 -f Dockerfile-Alt ./context
@@ -114,10 +120,10 @@ docker run -it t:1 bash
 
 - 上記で説明したDokcer container間の連携を宣言的に記述できる
 - 一つのhostに独立した環境を作成することができる
-  - `-p` or COMPOSE_PROJECT_NAME
+  - `-p` or COMPOSE_PROJECT_NAMEを使うことでproject名を明示的に指定できる, 指定しないとディレクトリ名
 - データを引き継いだまま updateできる
-  - docker-compose up
-- multiple compose file
+  - docker-compose up ( imageを更新する場合は --build フラグをつける )
+- multiple compose file [override](https://docs.docker.com/compose/extends/)
 
 #### 使われ方
 
@@ -157,7 +163,7 @@ pip install docker-compose
 FLASKとRedisを使ってアクセスカウンタを作成する
 
 プロジェクトについて
-名前空間を分ける `docker-compose -p`オプションで指定, 指定しないとディレクトリ名としてプロジェクトが作成される
+名前空間を分ける `docker-compose -p`オプションで指定, 指定しないとディレクトリ名でプロジェクトが作成される
 
 - サービス(app)の実装
 
@@ -377,6 +383,16 @@ networks:
 ```sh
 git clone https://github.com/Microsoft/vscode-remote-try-python
 ```
+
+#### 要素の説明
+
+- `.devcontainer`
+  - Dockerfile
+  - docker-compose.yaml
+  - devcontainer.json : vscode用の設定ファイル
+- `.vscode`
+  - launch.json : debug時に実行する環境の定義
+  - task.json : debug実行時に実行するコマンド定義 lauch.jsonから参照される
 
 ### Dind
 
