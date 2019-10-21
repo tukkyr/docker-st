@@ -294,6 +294,7 @@ docker-compse -f docker-compose.yml -f docker-compose.dev.yml でdocker-compose.
 docker-compose.dev.yml
 
 ```yaml
+version: "3.7"
 services:
   web:
     volumes:
